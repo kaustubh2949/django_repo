@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# -----------------------------------
+# Django Deployment Script on EC2 Ubuntu
+# By: Kaustubh Kishor Tandale
+# -----------------------------------
+
+# CONFIGURATION
+PROJECT_REPO="https://github.com/kaustubh2949/django_repo.git"
+PROJECT_DIR="django_repo"
+PROJECT_NAME="employee_pro"
+PUBLIC_IP="3.111.31.53"
+PYTHON_VERSION="python3.10"
+
+echo "🚀 Starting Django deployment..."
+
+# STEP 1: Update system and install dependencies
+echo "📦 Updating system and installing required packages..."
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git ${PYTHON_VERSION} ${PYTHON_VERSION}-venv python3-pip
+
+# STEP 2: Clone the project
+if [ -d "$PROJECT_DIR" ]; then
+    echo "📁 Project directory already exists. Skipping clone."
+else
+    echo "🔄 Cloning project from GitHub..."
+    git clone $PROJECT_REPO
+fi
+cd $PROJECT_DIR
+
+# STEP 3: Set up virtual environment
+echo "🐍 Creating and activating virtual environment..."
+${PYTHON_VERSION} -m venv venv
+source venv/bin/activate
+
+# STEP 4: Install Python requirements
+echo "📦 Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# STEP 5: Configure ALLOWED_HOSTS
+SETTINGS_FILE="$PROJECT_NAME/settings.py"
+HOST_LINE="ALLOWED_HOSTS = ['$PUBLIC_IP', 'localhost']"
+echo "⚙️ Setting ALLOWED_HOSTS in $SETTINGS_FILE"
+if grep -q "ALLOWED_HOSTS" "$SETTINGS_FILE"; then
+    sed -i "s/^ALLOWED_HOSTS.*/$HOST_LINE/" "$SETTINGS_FILE"
+else
+    echo "$HOST_LINE" >> "$SETTINGS_FILE"
+fi
+
+# STEP 6: Run migrations and collect static files
+echo "🗃️ Running migrations and collecting static files..."
+python manage.py makemigrations
+python manage.py migrate
+python manage.py collectstatic --noinput
+
+# STEP 7: (Optional) Create superuser
+echo "👤 If you want an admin user, run: python manage.py createsuperuser"
+
+# STEP 8: Run the Django development server
+echo "🚀 Starting Django dev server at http://$PUBLIC_IP:8000"
+python manage.py runserver 0.0.0.0:8000
